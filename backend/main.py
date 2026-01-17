@@ -75,5 +75,3 @@ def predict_sleep_health(data: SleepInput):
         "prediction": prediction_label,
         "confidence": float(probability)
     }
-
-# Trigerring CI/CD Pipeline
