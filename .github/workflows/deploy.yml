@@ -1,0 +1,53 @@
+name: Deploy Backend to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'  # Only triggers when backend files change
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  REGION: europe-west2   # <--- CHECK THIS: Must match your Cloud Run region
+  REPO_NAME: sleep-health-repo
+  SERVICE_NAME: sleep-health-api
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # 1. Authenticate with Google Cloud
+      - name: Google Auth
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+      # 2. Setup Cloud SDK
+      - name: Set up Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v1'
+
+      # 3. Authenticate Docker with Artifact Registry
+      - name: Configure Docker
+        run: |
+          gcloud auth configure-docker ${REGION}-docker.pkg.dev
+
+      # 4. Build and Push Docker Image
+      - name: Build and Push
+        run: |
+          cd backend
+          docker build -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:${{ github.sha }} .
+          docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:${{ github.sha }}
+
+      # 5. Deploy to Cloud Run
+      - name: Deploy to Cloud Run
+        uses: 'google-github-actions/deploy-cloudrun@v1'
+        with:
+          service: ${{ env.SERVICE_NAME }}
+          image: ${{ env.REGION }}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${SERVICE_NAME}:${{ github.sha }}
+          region: ${{ env.REGION }}
+          flags: '--allow-unauthenticated'
